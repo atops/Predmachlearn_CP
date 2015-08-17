@@ -235,7 +235,7 @@ boxplots <- function(df, c) {
 corplot(trdf)$plot
 ```
 
-```{r Boxplots, echo=FALSE, fig.width=10, message=FALSE, warning=FALSE}
+```{r Boxplots, echo=FALSE, fig.height=15, fig.width=10, message=FALSE, warning=FALSE}
 #pcaplot(trdf, "accel_belt")
 #pcaplot(trdf, "magnet_belt")
 #pcaplot(trdf, "magnet_arm")
@@ -256,10 +256,4 @@ boxplots(trdf, "total_accel")
 #                         contains("roll_"), contains("pitch_"), contains("yaw_")), 
 #           "_")
 ```
-
-##Checklist:
-
-* Your submission should consist of a link to a Github repo with your R markdown and compiled HTML file describing your analysis. Submit a repo with a gh-pages branch so the HTML page can be viewed online.
-* Please constrain the text of the writeup to < 2000 words and 
-* the number of figures to be less than 5.
 
