@@ -227,7 +227,7 @@ boxplots <- function(df, c) {
         xtall <- gather(x, "meas","val",-classe)
         qplot(x=classe, y=val, data=xtall, main="Boxplots of Covariates Against classe") + 
                 geom_boxplot() + 
-                facet_wrap(~meas, ncol=3, scales="free")
+                facet_wrap(~meas, ncol=2, scales="free")
 }
 ```
 
