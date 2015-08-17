@@ -1,0 +1,18 @@
+{
+    "contents" : "\nanswers = rep(\"A\", 20)\n\npml_write_files = function(x){\n        f <- function(i, v) {\n                filename = paste0(\"problem_id_\", i, \".txt\")\n                write.table(v, file=filename, quote=FALSE, row.names=FALSE, col.names=FALSE)\n        }\n        mapply(f, seq_along(x), x)\n}\n\npml_write_files(answers)\n\n",
+    "created" : 1439769874218.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "3769927295",
+    "id" : "7C2343A2",
+    "lastKnownWriteTime" : 1439770373,
+    "path" : "~/Dropbox/Coursera/Predmachlearn_CP/pml_submit.R",
+    "project_path" : "pml_submit.R",
+    "properties" : {
+        "tempName" : "Untitled1"
+    },
+    "relative_order" : 3,
+    "source_on_save" : false,
+    "type" : "r_source"
+}

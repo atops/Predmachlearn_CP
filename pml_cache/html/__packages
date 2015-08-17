@@ -1,0 +1,17 @@
+base
+lattice
+ggplot2
+caret
+plyr
+scales
+ggbiplot
+dplyr
+magrittr
+GGally
+rgl
+pls
+foreach
+iterators
+doParallel
+randomForest
+tidyr

@@ -1,0 +1,265 @@
+---
+title: "Prediction and Machine Learning Course Project"
+author: "atops"
+date: "August 16, 2015"
+output: html_document
+---
+
+This project uses data from accelerometers on the belt, forearm, arm, and dumbbell of 6 participants who were asked to perform barbell lifts correctly and incorrectly in 5 different ways. The goal of this project is to predict the manner in which they did the exercise. 
+
+The following is a report describing (a) how I built the model, (b) how I used cross validation, (c) what I think the expected out of sample error is, and (d) why I made the choices I did.
+
+##A. Building the model
+
+```{r Declarations, echo=FALSE, message=FALSE}
+library(caret)
+library(ggbiplot)
+library(dplyr)
+library(tidyr)
+library(magrittr)
+library(GGally)
+#library(rgl)
+library(parallel)
+library(doParallel)
+
+# --- CONSTANTS ----
+set.seed(1000)
+training_filename <- "~/Dropbox/Coursera/Predmachlearn_CP/pml-training.csv"
+testing_filename <- "~/Dropbox/Coursera/Predmachlearn_CP/pml-testing.csv"
+
+cl <- makeCluster(detectCores())
+registerDoParallel(cl)
+
+# EXPLORE THE DATA
+training <- read.csv(training_filename)
+testing <- read.csv(testing_filename)
+
+cols <- ncol(training)
+rows <- nrow(training)
+nas <- sapply(training, function(x) sum(is.na(x)))
+
+nulls_df <- data.frame(nulls=unique(nas), 
+                    count=sapply(unique(nas), function(x) sum(nas==x)))
+
+# Select covariates with full range of data -------
+trdf <- training %>%
+        dplyr::select(classe,
+                      user_name,
+                      gyros_belt_x,     accel_belt_x,     magnet_belt_x, 
+                      gyros_belt_y,     accel_belt_y,     magnet_belt_y, 
+                      gyros_belt_z,     accel_belt_z,     magnet_belt_z, 
+                      gyros_arm_x,      accel_arm_x,      magnet_arm_x, 
+                      gyros_arm_y,      accel_arm_y,      magnet_arm_y, 
+                      gyros_arm_z,      accel_arm_z,      magnet_arm_z, 
+                      gyros_dumbbell_x, accel_dumbbell_x, magnet_dumbbell_x, 
+                      gyros_dumbbell_y, accel_dumbbell_y, magnet_dumbbell_y, 
+                      gyros_dumbbell_z, accel_dumbbell_z, magnet_dumbbell_z, 
+                      gyros_forearm_x,  accel_forearm_x,  magnet_forearm_x,
+                      gyros_forearm_y,  accel_forearm_y,  magnet_forearm_y,
+                      gyros_forearm_z,  accel_forearm_z,  magnet_forearm_z,
+                      total_accel_belt,
+                      total_accel_arm,
+                      total_accel_dumbbell,
+                      total_accel_forearm,
+                      roll_dumbbell,  roll_forearm,  roll_arm,
+                      pitch_dumbbell, pitch_forearm, pitch_arm,
+                      yaw_dumbbell,   yaw_forearm,   yaw_arm)
+
+num_training_factors <- ncol(trdf)
+```
+
+I started by inspecting the data in Excel. It was clear from the outset that several of the variables had many missing values. Of the `r cols` columns, there were `r sum(nas==0)` feature complete columns (`r rows` observations) and `r sum(nas>0)` columns with only `r rows - unique(nas)[2]` observations. Given this, as a starting point I decided to start with the `r sum(nas==0)` feature complete factors and discard the others. A more rigorous analysis would have explored the other factors as well, for the observations where they were largely complete, with some imputation for further missing values (of which there were some).
+
+Subtracting out the non-qualitative factors such as `timestamps`, `window` and `user_name` resulted in `r num_training_factors` factors to consider. In order for this training data to be generalizable to other users beyond the 6 used for training (which is the whole point of the exercise), I left out `user_name` as a factor even though exploratory plots indicated it would have good predictive power.
+
+Initially, I decided to create a naive model that used all of the `r num_training_factors` variables I had left. Using methods such as partial least squares (`method="pls"`) and recursive partitioning (`method="rpart"`) I was able to get a model to run in a reasonable amount of time. However, the confusion matrix showed a lot of error. The predictions were really bad. The model I wanted to run, random forests (`method="rf"`) didn't complete after a very long time before I terminated the session.
+
+The partial least squares model I ran initially on all the input factors yielded the following results:
+
+```{r Train0, cache=TRUE}
+tc0 <- trainControl(method="repeatedcv", 
+                   number=10, 
+                   repeats=3,
+                   classProbs=TRUE,
+                   allowParallel=TRUE)
+trfit0 <- train(classe ~ .,
+               data=trdf,
+               trControl=tc0,
+               method="pls")
+cm <- confusionMatrix(trfit0)
+cm
+heatmap(cm$table, Rowv=NA, Colv=NA)
+```
+
+Trying to be a little smarter about it, I made several exploratory plots, including box plots of each of the factors against the `classe` variable. These showed several outliers which were contained within only 3 observations. I threw those 3 observations out. 
+
+```{r Outliers}
+# Remove outliers
+trdf %<>% filter(accel_belt_x > -100 & 
+                         gyros_dumbbell_x > -200 & 
+                         gyros_forearm_x > -20 &
+                         gyros_dumbbell_y < 40 &
+                         magnet_dumbbell_y > -1000 &
+                         gyros_forearm_y < 300 &
+                         accel_forearm_y < 750 &
+                         gyros_dumbbell_z < 300 &
+                         gyros_forearm_z < 200 &
+                         total_accel_dumbbell < 50 &
+                         total_accel_forearm < 90)
+```
+
+I then visually looked for a few variables that showed the highest relationship with classe from the box plots. I took the x, y and z components of each of these and added these to my model to see if I could a random forest model to complete. It took approximately 15 minutes and the results were very good.
+
+Some exploratory plots are shown in the Appendix.
+
+The final model as run is as follows.
+
+```{r Train, cache=TRUE}
+tc <- trainControl(method="repeatedcv", 
+                   number=10, 
+                   repeats=3,
+                   classProbs=TRUE,
+                   allowParallel=TRUE)
+trfit <- train(classe ~ roll_dumbbell + 
+                       magnet_arm_x + 
+                       magnet_arm_y + 
+                       magnet_arm_z + 
+                       magnet_dumbbell_x + 
+                       magnet_dumbbell_y + 
+                       magnet_dumbbell_z + 
+                       magnet_forearm_x +
+                       magnet_forearm_y +
+                       magnet_forearm_z +
+                       accel_belt_x +
+                       accel_belt_y +
+                       accel_belt_z +
+                       magnet_belt_x +
+                       magnet_belt_y +
+                       magnet_belt_z,
+               data=trdf,
+               trControl=tc,
+               method="rf")
+cm <- confusionMatrix(trfit)
+cm
+heatmap(cm$table, Rowv=NA, Colv=NA)
+```
+
+##B. Cross-Validation
+
+I used K-fold cross validation(`method="repeatedcv"`) with 10 folds (`number=10`) repeated 3 times (`repeats=3`). This divides the training set into 10 folds so each training and testing set is 90% and 10% of the training data, respectively. This was repeated 3 times with different k-fold partitions. Cross-validation reduces model overfitting by effectively creating multiple training and testing sets within the training data to test the model.
+
+##C. Expected Out-of-Sample Error
+
+Out-of-sample error is error from model predictions on a new data set. This is in contrast to in-sample error which is based on the training set.
+
+Training model accuracy is as follows:
+
+```{r Accuracy, cache=TRUE}
+cm <- confusionMatrix(trfit)
+
+prd <- predict(trfit, newdata=training)
+cm <- confusionMatrix(prd, reference=training$classe)
+cm
+```
+
+On the testing set, we expect less accuracy compared to the training set.
+
+##D. Explanation of Choices
+
+I chose random forests because it was easy for me to understand. Plus, it was taught in the lectures.
+I chose k-fold cross validation because again, it was easy for me to understand. 
+I chose the factors to include in the model based on visual inspection of their variability compared with classe. I would have gone to more sophisticated lengths had the model not turned out well, or had it not taken so long to run with more variables.
+
+In essence, I am wary of models and methods I don't understand. I strongly believe an understanding of the data and the model is the only way to ensure it is reasonable and applicable to the situations to which it will be applied. Selecting methods only because they seem to work may result in over-fitting on the training data, but it runs a greater risk of out-of-sample error when misapplied to a testing set. Plus, when things go wrong it is difficult to troubleshoot if you don't understand what the model is trying to do.
+
+##Appendix
+
+A few of the exploratory plots I created are included here.
+
+```{r Functions, cache=TRUE, echo=FALSE}
+# --- EXPLORATORY FUNCTIONS ----
+
+# Plot 3 variables to see if PCA would reduce dimensionality
+# df[data.frame], c[string] -> plot
+pcaplot <-function(df, c) {
+        tr_pca <- prcomp(select(df, contains(c)), 
+                         center=TRUE, 
+                         scale.=TRUE)
+        ggbiplot(tr_pca, 
+                 obs.scale = 1, 
+                 var.scale = 1,
+                 groups = df$classe, 
+                 ellipse = TRUE, 
+                 circle = TRUE) +
+                scale_color_discrete(name = '') +
+                theme(legend.direction = 'horizontal', 
+                      legend.position = 'top')
+        
+}
+
+# Find and plot a heatmap of correlations between all numeric variables
+# df[data.frame] -> list(matrix, heatmap)
+corplot <- function(df) {
+        tr_nofactor <- dplyr::select(df, -c(classe, user_name))
+        cm <- cor(tr_nofactor)
+        hm <- heatmap(cm, 
+                      Rowv=NA, Colv=NA, 
+                      col=heat.colors(256), 
+                      scale="column", 
+                      margins=c(5,10), 
+                      main="Correlation Matrix")
+        list(matrix=cm, plot=hm)
+}
+
+# Create a pairs plot showing more than just scatterplots
+# df[data.frame], c[string] -> plot
+fancypairs <- function(df, c) {
+        ggpairs(dplyr::select(df, classe, user_name, contains(c)),
+                diag=list(continuous="density", discrete="bar"), 
+                upper=list(continuous="density", discrete="bar", mixed="box"),
+                color="classe")
+}
+
+# Create a series of boxplots of variables, c, against classe
+# df[data.frame], c[string] -> plot
+boxplots <- function(df, c) {
+        x <- dplyr::select(df, classe, contains(c))
+        xtall <- gather(x, "meas","val",-classe)
+        qplot(x=classe, y=val, data=xtall, main="Boxplots of Covariates Against classe") + 
+                geom_boxplot() + 
+                facet_wrap(~meas, ncol=3, scales="free")
+}
+```
+
+```{r Correlations, echo=FALSE, fig.height=10, fig.width=10, message=FALSE, warning=FALSE}
+corplot(trdf)$plot
+```
+
+```{r Boxplots, echo=FALSE, fig.width=10, message=FALSE, warning=FALSE}
+#pcaplot(trdf, "accel_belt")
+#pcaplot(trdf, "magnet_belt")
+#pcaplot(trdf, "magnet_arm")
+#pcaplot(trdf, "magnet_dumbbell")
+
+boxplots(trdf, "_x")
+boxplots(trdf, "_y")
+boxplots(trdf, "_z")
+boxplots(trdf, "total_accel")
+
+# variant on selection for fancypairs
+#fancypairs(trdf, "_x")
+#fancypairs(trdf, "_y")
+#fancypairs(trdf, "_z")
+#fancypairs(dplyr::select(trdf, 
+#                         classe, 
+#                         user_name, 
+#                         contains("roll_"), contains("pitch_"), contains("yaw_")), 
+#           "_")
+```
+
+##Checklist:
+
+* Your submission should consist of a link to a Github repo with your R markdown and compiled HTML file describing your analysis. Submit a repo with a gh-pages branch so the HTML page can be viewed online.
+* Please constrain the text of the writeup to < 2000 words and 
+* the number of figures to be less than 5.
+
