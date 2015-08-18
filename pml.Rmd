@@ -156,7 +156,7 @@ Training model accuracy (in-sample) is as follows:
 cm <- confusionMatrix(trfit)
 
 prd <- predict(trfit, newdata=training)
-confusionMatrix(prd, reference=training$classe)
+print(confusionMatrix(prd, reference=training$classe))
 ```
 
 We expect the out-of-sample error to be greater than the in-sample error.
@@ -198,13 +198,12 @@ pcaplot <-function(df, c) {
 corplot <- function(df) {
         tr_nofactor <- dplyr::select(df, -c(classe, user_name))
         cm <- cor(tr_nofactor)
-        hm <- heatmap(cm, 
-                      Rowv=NA, Colv=NA, 
-                      col=heat.colors(256), 
-                      scale="column", 
-                      margins=c(5,10), 
-                      main="Correlation Matrix")
-        list(matrix=cm, plot=hm)
+        heatmap(cm, 
+                Rowv=NA, Colv=NA, 
+                col=heat.colors(256), 
+                scale="column", 
+                margins=c(5,10), 
+                main="Correlation Matrix")
 }
 
 # Create a pairs plot showing more than just scatterplots
@@ -228,7 +227,7 @@ boxplots <- function(df, c) {
 ```
 
 ```{r Correlations, echo=FALSE, fig.height=10, fig.width=10, message=FALSE, warning=FALSE}
-corplot(trdf)$plot
+corplot(trdf)
 ```
 
 ```{r Boxplots, echo=FALSE, fig.height=15, fig.width=10, message=FALSE, warning=FALSE}
