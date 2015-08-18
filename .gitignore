@@ -1,6 +1,4 @@
 *.xlsx
-/pml_cache/
-pml_cache/*
-pml_cache\
-pml_cache\*
-.Rproj.user\
+*.txt
+pml_cache/
+.Rproj.user/

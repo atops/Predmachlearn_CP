@@ -156,7 +156,7 @@ names(training)[nzv]
 #dv <- data.frame(predict(dv, newdata=training), training19622)
 
 # -- TRAIN ----
-
+# Naive model wtih partial least squares
 tc0 <- trainControl(method="repeatedcv", 
                    number=10, 
                    repeats=10,
@@ -169,7 +169,18 @@ trfit0 <- train(classe ~ .,
 cm <- confusionMatrix(trfit0)
 heatmap(cm$table, Rowv=NA, Colv=NA)
 
-# Simple possible model
+# Naive model with random forests
+tc <- trainControl(method="repeatedcv", 
+                   number=10, 
+                   repeats=3,
+                   classProbs=TRUE,
+                   allowParallel=TRUE)
+trfit <- train(classe ~ .,
+               data=trdf,
+               trControl=tc,
+               method="rf")
+
+# Selected model (this has been updated in the Rmd file)
 ptm <- proc.time()
 tc <- trainControl(method="repeatedcv", 
                    number=10, 

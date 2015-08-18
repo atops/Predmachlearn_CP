@@ -18,6 +18,9 @@ library(dplyr)
 library(tidyr)
 library(magrittr)
 library(GGally)
+library(pander)
+#library(pls)
+#library(randomForest)
 #library(rgl)
 library(parallel)
 library(doParallel)
@@ -91,7 +94,7 @@ cm
 heatmap(cm$table, Rowv=NA, Colv=NA)
 ```
 
-Trying to be a little smarter about it, I made several exploratory plots, including box plots of each of the factors against the `classe` variable. These showed several outliers which were contained within only 3 observations. I threw those 3 observations out. 
+Trying to be a little smarter about it, I made several exploratory plots, including box plots of each of the factors against the `classe` variable. Some of these are shown in the Appendix. These showed several outliers which were contained within only 3 observations. I threw those 3 observations out.
 
 ```{r Outliers}
 # Remove outliers
@@ -108,9 +111,15 @@ trdf %<>% filter(accel_belt_x > -100 &
                          total_accel_forearm < 90)
 ```
 
-I then visually looked for a few variables that showed the highest relationship with classe from the box plots. I took the x, y and z components of each of these and added these to my model to see if I could a random forest model to complete. It took approximately 15 minutes and the results were very good.
+I then visually looked for a few variables that showed the highest relationship with classe from the box plots. I also used the `varImp` function from `caret` to identify which factors carried the most importance on the initial model. 
 
-Some exploratory plots are shown in the Appendix.
+```{r}
+vi <- varImp(trfit0$finalModel)*10000000
+vi$all <- rowSums(vi)
+pandoc.table(vi[order(vi$all),])
+```
+
+I took the x, y and z components of the most significant variables and added these to my model to see if I could a random forest model to complete. It took a while to complete but the results were very good.
 
 The final model as run is as follows.
 
@@ -121,6 +130,8 @@ tc <- trainControl(method="repeatedcv",
                    classProbs=TRUE,
                    allowParallel=TRUE)
 trfit <- train(classe ~ roll_dumbbell + 
+                       yaw_dumbbell +
+                       pitch_dumbbell +
                        magnet_arm_x + 
                        magnet_arm_y + 
                        magnet_arm_z + 
@@ -130,12 +141,15 @@ trfit <- train(classe ~ roll_dumbbell +
                        magnet_forearm_x +
                        magnet_forearm_y +
                        magnet_forearm_z +
-                       accel_belt_x +
-                       accel_belt_y +
-                       accel_belt_z +
-                       magnet_belt_x +
-                       magnet_belt_y +
-                       magnet_belt_z,
+                       magnet_dumbbell_x +
+                       magnet_dumbbell_y +
+                       magnet_dumbbell_z +
+                       accel_arm_x +
+                       accel_arm_y +
+                       accel_arm_z +
+                       accel_forearm_x +
+                       accel_forearm_y +
+                       accel_forearm_z,
                data=trdf,
                trControl=tc,
                method="rf")
