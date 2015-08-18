@@ -40,9 +40,7 @@ testing <- read.csv(testing_filename)
 cols <- ncol(training)
 rows <- nrow(training)
 nas <- sapply(training, function(x) sum(is.na(x)))
-
-nulls_df <- data.frame(nulls=unique(nas), 
-                    count=sapply(unique(nas), function(x) sum(nas==x)))
+blanks <- sapply(training, function(x) sum(x=="" | is.na(x)))
 
 # Select covariates with full range of data -------
 trdf <- training %>%
@@ -71,7 +69,7 @@ trdf <- training %>%
 num_training_factors <- ncol(trdf)
 ```
 
-I started by inspecting the data in Excel. It was clear from the outset that several of the variables had many missing values. Of the `r cols` columns, there were `r sum(nas==0)` feature complete columns (`r rows` observations) and `r sum(nas>0)` columns with only `r rows - unique(nas)[2]` observations. Given this, as a starting point I decided to start with the `r sum(nas==0)` feature complete factors and discard the others. A more rigorous analysis would have explored the other factors as well, for the observations where they were largely complete, with some imputation for further missing values (of which there were some).
+I started by inspecting the data in Excel. It was clear from the outset that several of the variables had many missing values. Of the `r cols` columns, there were `r sum(blanks==0)` feature complete columns (`r rows` observations) and `r sum(blanks>0)` columns with only `r rows - unique(blanks)[2]` observations. Given this, as a starting point I decided to start with the `r sum(blanks==0)` feature complete factors and discard the others. A more rigorous analysis would have explored the other factors as well, for the observations where they were largely complete, with some imputation for further missing values (of which there were some).
 
 Subtracting out the non-qualitative factors such as `timestamps`, `window` and `user_name` resulted in `r num_training_factors` factors to consider. In order for this training data to be generalizable to other users beyond the 6 used for training (which is the whole point of the exercise), I left out `user_name` as a factor even though exploratory plots indicated it would have good predictive power.
 
@@ -113,15 +111,10 @@ trdf %<>% filter(accel_belt_x > -100 &
 
 I then visually looked for a few variables that showed the highest relationship with classe from the box plots. I also used the `varImp` function from `caret` to identify which factors carried the most importance on the initial model. 
 
-```{r}
+```{r VarImp, message=FALSE, warning=FALSE}
 vi <- varImp(trfit0$finalModel)*10000000
-vi$all <- rowSums(vi)
-#pandoc.table(vi[order(vi$all),])
-#htmlTable(txtRound(vi[order(vi$all),],2), 
-#          align = c("l", "r", "r", "r", "r", "r", "r"))
-kable(vi[order(-vi$all),], 
-          align = c("r", "r", "r", "r", "r", "r"))
-
+vi$Sum <- rowSums(vi)
+kable(vi[order(-vi$Sum),], align = "r", digits=2)
 ```
 
 I took the x, y and z components of the most significant variables and added these to my model to see if I could a random forest model to complete. It took a while to complete but the results were very good.
@@ -155,27 +148,25 @@ I used K-fold cross validation(`method="repeatedcv"`) with 10 folds (`number=10`
 
 ##C. Expected Out-of-Sample Error
 
-Out-of-sample error is error from model predictions on a new data set. This is in contrast to in-sample error which is based on the training set.
+Out-of-sample error is error from model predictions on a new data set. This is in contrast to in-sample error which is based on the training set. 
 
-Training model accuracy is as follows:
+Training model accuracy (in-sample) is as follows:
 
 ```{r Accuracy, cache=TRUE}
 cm <- confusionMatrix(trfit)
 
 prd <- predict(trfit, newdata=training)
-cm <- confusionMatrix(prd, reference=training$classe)
-cm
+confusionMatrix(prd, reference=training$classe)
 ```
 
-On the testing set, we expect less accuracy compared to the training set.
+We expect the out-of-sample error to be greater than the in-sample error.
+
 
 ##D. Explanation of Choices
 
-I chose random forests because it was easy for me to understand. Plus, it was taught in the lectures.
-I chose k-fold cross validation because again, it was easy for me to understand. 
-I chose the factors to include in the model based on visual inspection of their variability compared with classe. I would have gone to more sophisticated lengths had the model not turned out well, or had it not taken so long to run with more variables.
-
-In essence, I am wary of models and methods I don't understand. I strongly believe an understanding of the data and the model is the only way to ensure it is reasonable and applicable to the situations to which it will be applied. Selecting methods only because they seem to work may result in over-fitting on the training data, but it runs a greater risk of out-of-sample error when misapplied to a testing set. Plus, when things go wrong it is difficult to troubleshoot if you don't understand what the model is trying to do.
+I chose the random forests method because it was taught in the lectures, is relatively easy to understand conceptually and because it is reported to produce good results. However, it took a long time to run.
+I chose k-fold cross validation because it was straightforward to understand. 
+I chose the factors to include in the model based on their relative importance based on an initial partial least squares model, and based on visual inspection of their variability compared with classe. I would have gone to more sophisticated lengths had the model not turned out well, or had it not taken so long to run with more variables.
 
 ##Appendix
 
@@ -246,11 +237,6 @@ corplot(trdf)$plot
 #pcaplot(trdf, "magnet_arm")
 #pcaplot(trdf, "magnet_dumbbell")
 
-boxplots(trdf, "_x")
-boxplots(trdf, "_y")
-boxplots(trdf, "_z")
-boxplots(trdf, "total_accel")
-
 # variant on selection for fancypairs
 #fancypairs(trdf, "_x")
 #fancypairs(trdf, "_y")
@@ -260,5 +246,11 @@ boxplots(trdf, "total_accel")
 #                         user_name, 
 #                         contains("roll_"), contains("pitch_"), contains("yaw_")), 
 #           "_")
-```
 
+boxplots(trdf, "_x")
+boxplots(trdf, "_y")
+boxplots(trdf, "_z")
+```
+```{r Boxplot2, echo=FALSE, fig.width=10, message=FALSE, warning=FALSE}
+boxplots(trdf, "total_accel")
+```
