@@ -15,3 +15,6 @@ iterators
 doParallel
 randomForest
 tidyr
+pander
+htmlTable
+knitr
