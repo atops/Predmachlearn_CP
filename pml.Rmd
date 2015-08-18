@@ -18,7 +18,7 @@ library(dplyr)
 library(tidyr)
 library(magrittr)
 library(GGally)
-library(pander)
+library(knitr)
 #library(pls)
 #library(randomForest)
 #library(rgl)
@@ -85,8 +85,8 @@ tc0 <- trainControl(method="repeatedcv",
                    repeats=3,
                    classProbs=TRUE,
                    allowParallel=TRUE)
-trfit0 <- train(classe ~ .,
-               data=trdf,
+trfit0 <- train(classe ~.,
+               data=select(trdf,-user_name),
                trControl=tc0,
                method="pls")
 cm <- confusionMatrix(trfit0)
@@ -94,7 +94,7 @@ cm
 heatmap(cm$table, Rowv=NA, Colv=NA)
 ```
 
-Trying to be a little smarter about it, I made several exploratory plots, including box plots of each of the factors against the `classe` variable. Some of these are shown in the Appendix. These showed several outliers which were contained within only 3 observations. I threw those 3 observations out.
+Trying to be a little smarter about covariate selection, I made several exploratory plots, including box plots of each of the factors against the `classe` variable. Some of these are shown in the Appendix. These showed several outliers which were contained within only 3 observations. I threw those 3 observations out.
 
 ```{r Outliers}
 # Remove outliers
@@ -116,7 +116,12 @@ I then visually looked for a few variables that showed the highest relationship 
 ```{r}
 vi <- varImp(trfit0$finalModel)*10000000
 vi$all <- rowSums(vi)
-pandoc.table(vi[order(vi$all),])
+#pandoc.table(vi[order(vi$all),])
+#htmlTable(txtRound(vi[order(vi$all),],2), 
+#          align = c("l", "r", "r", "r", "r", "r", "r"))
+kable(vi[order(-vi$all),], 
+          align = c("r", "r", "r", "r", "r", "r"))
+
 ```
 
 I took the x, y and z components of the most significant variables and added these to my model to see if I could a random forest model to complete. It took a while to complete but the results were very good.
@@ -129,27 +134,13 @@ tc <- trainControl(method="repeatedcv",
                    repeats=3,
                    classProbs=TRUE,
                    allowParallel=TRUE)
-trfit <- train(classe ~ roll_dumbbell + 
-                       yaw_dumbbell +
-                       pitch_dumbbell +
-                       magnet_arm_x + 
-                       magnet_arm_y + 
-                       magnet_arm_z + 
-                       magnet_dumbbell_x + 
-                       magnet_dumbbell_y + 
-                       magnet_dumbbell_z + 
-                       magnet_forearm_x +
-                       magnet_forearm_y +
-                       magnet_forearm_z +
-                       magnet_dumbbell_x +
-                       magnet_dumbbell_y +
-                       magnet_dumbbell_z +
-                       accel_arm_x +
-                       accel_arm_y +
-                       accel_arm_z +
-                       accel_forearm_x +
-                       accel_forearm_y +
-                       accel_forearm_z,
+trfit <- train(classe ~ roll_dumbbell + yaw_dumbbell +pitch_dumbbell +
+                       magnet_arm_x + magnet_arm_y + magnet_arm_z + 
+                       magnet_dumbbell_x + magnet_dumbbell_y + magnet_dumbbell_z + 
+                       magnet_forearm_x + magnet_forearm_y + magnet_forearm_z +
+                       magnet_dumbbell_x + magnet_dumbbell_y + magnet_dumbbell_z +
+                       accel_arm_x + accel_arm_y + accel_arm_z +
+                       accel_forearm_x + accel_forearm_y + accel_forearm_z,
                data=trdf,
                trControl=tc,
                method="rf")
